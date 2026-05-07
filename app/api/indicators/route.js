@@ -2,25 +2,67 @@ import { NextResponse } from "next/server";
 import bundledIndicators from "../../../data/indicators.json";
 
 const OWNER = process.env.GITHUB_OWNER || "MrwallyST";
-const REPO  = process.env.GITHUB_REPO  || "icc-indicator-hub";
-const FILE  = "data/indicators.json";
-const RAW   = `https://raw.githubusercontent.com/${OWNER}/${REPO}/main/${FILE}`;
+const REPO = process.env.GITHUB_REPO || "icc-indicator-hub";
+const FILE = "data/indicators.json";
+const BRANCH = "main";
+const RAW = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${FILE}`;
+const CONTENTS = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`;
 
-// ── GET: fetch indicators live from GitHub raw ──────────────────────────────
+function githubHeaders(token) {
+  return {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+    "User-Agent": "icc-hub",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+}
+
+async function readGitHubIndicators(token) {
+  if (!token) return null;
+
+  const res = await fetch(`${CONTENTS}?ref=${BRANCH}&t=${Date.now()}`, {
+    headers: githubHeaders(token),
+    cache: "no-store",
+  });
+
+  if (res.status === 404) {
+    return { indicators: bundledIndicators, sha: null };
+  }
+
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.message || "GitHub read failed");
+  }
+
+  const meta = await res.json();
+  const decoded = Buffer.from(meta.content || "", "base64").toString("utf8");
+  const indicators = JSON.parse(decoded || "[]");
+
+  return {
+    indicators: Array.isArray(indicators) && indicators.length > 0 ? indicators : bundledIndicators,
+    sha: meta.sha,
+  };
+}
+
+async function readPublicIndicators() {
+  const res = await fetch(`${RAW}?t=${Date.now()}`, { cache: "no-store" });
+  if (!res.ok) return bundledIndicators;
+
+  const data = await res.json();
+  return Array.isArray(data) && data.length > 0 ? data : bundledIndicators;
+}
+
 export async function GET() {
   try {
-    const res = await fetch(`${RAW}?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return NextResponse.json(bundledIndicators, { status: 200 });
-    const data = await res.json();
-    return NextResponse.json(Array.isArray(data) && data.length > 0 ? data : bundledIndicators);
+    const githubData = await readGitHubIndicators(process.env.GITHUB_TOKEN);
+    const indicators = githubData?.indicators || await readPublicIndicators();
+    return NextResponse.json(indicators);
   } catch {
     return NextResponse.json(bundledIndicators, { status: 200 });
   }
 }
 
-// ── POST: add new indicator (writes back to GitHub) ─────────────────────────
 export async function POST(request) {
-  // Auth
   const key = request.headers.get("x-api-key") || request.headers.get("authorization")?.replace("Bearer ", "");
   if (!process.env.API_KEY || key !== process.env.API_KEY) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -36,7 +78,6 @@ export async function POST(request) {
     return NextResponse.json({ error: "Missing required fields: title, code" }, { status: 400 });
   }
 
-  // Generate ID + timestamp
   const newIndicator = {
     ...body,
     id: body.id || (body.title.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + Date.now()),
@@ -44,40 +85,29 @@ export async function POST(request) {
     version: body.version || "v1.0",
   };
 
-  // Fetch current indicators
-  const current = await fetch(`${RAW}?t=${Date.now()}`, { cache: "no-store" });
-  const indicators = current.ok ? await current.json() : [];
+  const currentFile = await readGitHubIndicators(token);
+  const indicators = currentFile?.indicators || bundledIndicators;
   const updated = [...indicators, newIndicator];
 
-  // Fetch current file SHA (required by GitHub API for updates)
-  const metaRes = await fetch(
-    `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`,
-    { headers: { Authorization: `token ${token}`, "User-Agent": "icc-hub" } }
-  );
-  const meta = await metaRes.json();
-  const sha = meta.sha;
+  const commitBody = {
+    message: `Add indicator: ${newIndicator.title}`,
+    content: Buffer.from(JSON.stringify(updated, null, 2)).toString("base64"),
+    branch: BRANCH,
+  };
+  if (currentFile?.sha) commitBody.sha = currentFile.sha;
 
-  // Commit updated file
-  const commitRes = await fetch(
-    `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`,
-    {
-      method: "PUT",
-      headers: {
-        Authorization: `token ${token}`,
-        "Content-Type": "application/json",
-        "User-Agent": "icc-hub",
-      },
-      body: JSON.stringify({
-        message: `Add indicator: ${newIndicator.title}`,
-        content: Buffer.from(JSON.stringify(updated, null, 2)).toString("base64"),
-        sha,
-      }),
-    }
-  );
+  const commitRes = await fetch(CONTENTS, {
+    method: "PUT",
+    headers: {
+      ...githubHeaders(token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(commitBody),
+  });
 
   if (!commitRes.ok) {
-    const err = await commitRes.json();
-    return NextResponse.json({ error: "GitHub commit failed", detail: err }, { status: 500 });
+    const detail = await commitRes.json().catch(() => ({}));
+    return NextResponse.json({ error: "GitHub commit failed", detail }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, id: newIndicator.id, total: updated.length });

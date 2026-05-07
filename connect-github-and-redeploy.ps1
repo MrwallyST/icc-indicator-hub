@@ -1,7 +1,7 @@
 param(
   [string]$Repo = "MrwallyST/icc-indicator-hub",
   [string]$LiveUrl = "https://icc-indicator-hub.vercel.app",
-  [string]$ApiKey = "wXbPhMgqaZQVpwJqo8DcMaCvTuuXw6hxEwXJsCR8BNQ"
+  [string]$ApiKey = "icc-mafia-2024"
 )
 
 $ErrorActionPreference = "Stop"
