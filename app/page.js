@@ -27,6 +27,62 @@ export default function Home() {
     });
   }
 
+  const AGENT_PROMPT = `Build a TradingView Pine Script v6 indicator for: [DESCRIBE THE EXACT SETUP].
+
+Requirements:
+- Use Pine Script v6.
+- Use indicator(), not strategy(), unless I specifically ask for a backtestable strategy.
+- Do not repaint.
+- Keep labels, boxes, and lines within TradingView limits.
+- Add clean grouped inputs.
+- Add alertcondition() entries for important signals.
+- Make labels readable on mobile.
+- Explain what the indicator does and what each signal means.
+
+After the Pine code is complete, publish it to my Indicator Hub:
+POST https://icc-indicator-hub.vercel.app/api/indicators
+
+Use this header:
+x-api-key: [PRIVATE HUB API KEY]
+
+Send JSON with this shape:
+{
+  "title": "Indicator Name",
+  "badge": "INDICATOR",
+  "badgeColor": "#26a69a",
+  "subtitle": "Short one-line purpose",
+  "description": "Clear description of what it does",
+  "category": "trading",
+  "version": "v1.0",
+  "features": [
+    { "icon": "chart", "label": "Feature name", "desc": "What this feature does" }
+  ],
+  "alerts": ["Alert 1", "Alert 2"],
+  "settings": "Recommended settings or notes",
+  "code": "FULL PINE SCRIPT CODE HERE"
+}
+
+After publishing, verify the response says success:true. Then GET https://icc-indicator-hub.vercel.app/api/indicators and confirm the new indicator appears.`;
+
+  const API_EXAMPLE = `curl -X POST https://icc-indicator-hub.vercel.app/api/indicators \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: [PRIVATE HUB API KEY]" \\
+  -d '{
+    "title": "My New Indicator",
+    "badge": "INDICATOR",
+    "badgeColor": "#26a69a",
+    "subtitle": "One-line purpose",
+    "description": "What this indicator does.",
+    "category": "trading",
+    "version": "v1.0",
+    "features": [
+      { "icon": "chart", "label": "Signal Logic", "desc": "What the signal tracks." }
+    ],
+    "alerts": ["Bullish Signal", "Bearish Signal"],
+    "settings": "Recommended settings or notes.",
+    "code": "//@version=6\\nindicator(\\"My New Indicator\\", overlay=true)\\nplot(close)"
+  }'`;
+
   const S = {
     page: { fontFamily: "'Inter', -apple-system, sans-serif", background: "#0e0f14", color: "#d1d9e6", minHeight: "100vh", lineHeight: 1.6 },
     nav: { position: "sticky", top: 0, zIndex: 100, background: "rgba(14,15,20,0.96)", backdropFilter: "blur(12px)", borderBottom: "1px solid #1f2b3e", padding: "0 2rem", display: "flex", alignItems: "center", gap: "1rem", height: 56 },
@@ -64,7 +120,12 @@ export default function Home() {
     footer: { textAlign: "center", borderTop: "1px solid #1f2b3e", padding: "2rem", color: "#4a5568", fontSize: "0.8rem" },
     apiBox: { background: "#0e1420", border: "1px solid #2a3a52", borderRadius: 12, padding: "1.5rem 2rem", marginBottom: "3rem" },
     apiTitle: { fontWeight: 700, fontSize: "0.95rem", marginBottom: "0.75rem" },
-    apiCode: { fontFamily: "monospace", fontSize: "0.78rem", color: "#4dd0c4", background: "#0a0e14", padding: "1rem 1.25rem", borderRadius: 8, overflowX: "auto", whiteSpace: "pre", lineHeight: 1.7 }
+    apiText: { color: "#8896a9", fontSize: "0.84rem", marginBottom: "1rem" },
+    promptGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: "1rem" },
+    promptPanel: { minWidth: 0 },
+    promptHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", marginBottom: "0.5rem" },
+    promptTitle: { fontWeight: 700, fontSize: "0.82rem", color: "#d1d9e6" },
+    apiCode: { fontFamily: "monospace", fontSize: "0.72rem", color: "#4dd0c4", background: "#0a0e14", padding: "1rem 1.25rem", borderRadius: 8, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.65, maxHeight: 440, overflowY: "auto" }
   };
 
   const count = filtered.length;
@@ -96,21 +157,30 @@ export default function Home() {
       <div style={S.wrap}>
 
         <div style={S.apiBox}>
-          <div style={S.apiTitle}>🔌 Add an indicator via API</div>
-          <pre style={S.apiCode}>{`POST /api/indicators
-Headers: { "x-api-key": "YOUR_API_KEY" }
-Body: {
-  "title": "My New Indicator",
-  "badge": "INDICATOR",
-  "badgeColor": "#26a69a",
-  "description": "What this does...",
-  "features": [{ "icon": "⚡", "label": "Feature", "desc": "Description" }],
-  "alerts": ["Alert name"],
-  "code": "//@version=6\\n..."
-}`}</pre>
-          <p style={{ fontSize: "0.8rem", color: "#4a5568", marginTop: "0.75rem" }}>
-            Any agent (Codex, Claude, etc.) can POST to this endpoint to publish a new indicator here automatically.
+          <div style={S.apiTitle}>Agent Publishing Prompt</div>
+          <p style={S.apiText}>
+            Give this to HyperAgent, Antigravity, Codex, Claude, or any coding agent that can call an API. Keep the hub API key private and paste it only into the agent session you trust.
           </p>
+          <div style={S.promptGrid}>
+            <div style={S.promptPanel}>
+              <div style={S.promptHead}>
+                <div style={S.promptTitle}>Prompt for any agent</div>
+                <button style={S.copyBtn(copied["agent-prompt"])} onClick={() => copyCode("agent-prompt", AGENT_PROMPT)}>
+                  {copied["agent-prompt"] ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <pre style={S.apiCode}>{AGENT_PROMPT}</pre>
+            </div>
+            <div style={S.promptPanel}>
+              <div style={S.promptHead}>
+                <div style={S.promptTitle}>Direct API example</div>
+                <button style={S.copyBtn(copied["api-example"])} onClick={() => copyCode("api-example", API_EXAMPLE)}>
+                  {copied["api-example"] ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <pre style={S.apiCode}>{API_EXAMPLE}</pre>
+            </div>
+          </div>
         </div>
 
         {loading && <div style={S.empty}>Loading indicators…</div>}
