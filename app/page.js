@@ -29,44 +29,45 @@ export default function Home() {
 
   const AGENT_PROMPT = `Build a TradingView Pine Script v6 indicator for: [DESCRIBE THE EXACT SETUP].
 
+ICC Framework Context:
+This indicator is for the ICC method: Indication (HTF body close beyond swing pivot) → Correction (retrace to previous push zone) → Continuation (CHoCH + BOS confirms entry). Primary assets: BTC, SOL, Gold, NQ. Active session: 8:00 AM – 11:30 AM EST only. Never trade at ATH.
+
 Requirements:
-- Use Pine Script v6.
-- Use indicator(), not strategy(), unless I specifically ask for a backtestable strategy.
-- Do not repaint.
-- Keep labels, boxes, and lines within TradingView limits.
-- Add clean grouped inputs.
-- Add alertcondition() entries for important signals.
-- Make labels readable on mobile.
-- Explain what the indicator does and what each signal means.
+- Use Pine Script v6 (//@version=6)
+- Use indicator(), not strategy(), unless I ask for a backtest
+- Do not repaint — use barstate.isconfirmed
+- Keep labels, boxes, lines within TradingView limits (max 500)
+- Use var for persistent variables
+- Add clean grouped inputs with group= on every input.*
+- Add alertcondition() for every important signal
+- Make labels readable on mobile — use input.string for label size
+- No deprecated syntax: no transp, no resolution parameter
 
 After the Pine code is complete, publish it to my Indicator Hub:
 POST https://icc-indicator-hub.vercel.app/api/indicators
+Header: x-api-key: icc-mafia-2024
+Content-Type: application/json
 
-Use this header:
-x-api-key: [PRIVATE HUB API KEY]
-
-Send JSON with this shape:
+JSON shape:
 {
   "title": "Indicator Name",
   "badge": "INDICATOR",
   "badgeColor": "#26a69a",
   "subtitle": "Short one-line purpose",
-  "description": "Clear description of what it does",
+  "description": "Clear description",
   "category": "trading",
   "version": "v1.0",
-  "features": [
-    { "icon": "chart", "label": "Feature name", "desc": "What this feature does" }
-  ],
+  "features": [{ "icon": "chart", "label": "Feature", "desc": "What it does" }],
   "alerts": ["Alert 1", "Alert 2"],
-  "settings": "Recommended settings or notes",
+  "settings": "Recommended settings",
   "code": "FULL PINE SCRIPT CODE HERE"
 }
 
-After publishing, verify the response says success:true. Then GET https://icc-indicator-hub.vercel.app/api/indicators and confirm the new indicator appears.`;
+After publishing: confirm success:true, then GET https://icc-indicator-hub.vercel.app/api/indicators and confirm the new indicator appears.`;
 
   const API_EXAMPLE = `curl -X POST https://icc-indicator-hub.vercel.app/api/indicators \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: [PRIVATE HUB API KEY]" \\
+  -H "x-api-key: icc-mafia-2024" \\
   -d '{
     "title": "My New Indicator",
     "badge": "INDICATOR",
@@ -159,7 +160,7 @@ After publishing, verify the response says success:true. Then GET https://icc-in
         <div style={S.apiBox}>
           <div style={S.apiTitle}>Agent Publishing Prompt</div>
           <p style={S.apiText}>
-            Give this to HyperAgent, Antigravity, Codex, Claude, or any coding agent that can call an API. Keep the hub API key private and paste it only into the agent session you trust.
+            Give this to HyperAgent, Antigravity, Codex, Claude, or any coding agent that can call an API. The publishing key is included in the copied prompt so agents can add indicators directly.
           </p>
           <div style={S.promptGrid}>
             <div style={S.promptPanel}>
