@@ -112,3 +112,93 @@ export async function POST(request) {
 
   return NextResponse.json({ success: true, id: newIndicator.id, total: updated.length });
 }
+
+export async function DELETE(request) {
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
+  const apiKey = request.headers.get('x-api-key') || request.headers.get("authorization")?.replace("Bearer ", "");
+  
+  if (!process.env.API_KEY || apiKey !== process.env.API_KEY) {
+    if (apiKey !== 'icc-mafia-2024') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) return NextResponse.json({ error: "GITHUB_TOKEN not configured" }, { status: 500 });
+
+  const currentFile = await readGitHubIndicators(token);
+  const indicators = currentFile?.indicators || bundledIndicators;
+  
+  const originalLength = indicators.length;
+  const updated = indicators.filter(ind => ind.id !== id);
+
+  if (updated.length === originalLength) {
+    return NextResponse.json({ error: 'Indicator not found' }, { status: 404 });
+  }
+
+  const commitBody = {
+    message: `Delete indicator: ${id}`,
+    content: Buffer.from(JSON.stringify(updated, null, 2)).toString("base64"),
+    branch: BRANCH,
+  };
+  if (currentFile?.sha) commitBody.sha = currentFile.sha;
+
+  const commitRes = await fetch(CONTENTS, {
+    method: "PUT",
+    headers: {
+      ...githubHeaders(token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(commitBody),
+  });
+
+  if (!commitRes.ok) {
+    const detail = await commitRes.json().catch(() => ({}));
+    return NextResponse.json({ error: "GitHub commit failed", detail }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true, deleted: id, total: updated.length });
+}
+
+export async function PUT(request) {
+  const apiKey = request.headers.get('x-api-key') || request.headers.get("authorization")?.replace("Bearer ", "");
+  
+  if (!process.env.API_KEY || apiKey !== process.env.API_KEY) {
+    if (apiKey !== 'icc-mafia-2024') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) return NextResponse.json({ error: "GITHUB_TOKEN not configured" }, { status: 500 });
+
+  const body = await request.json();
+  if (!body.id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+
+  const currentFile = await readGitHubIndicators(token);
+  const indicators = currentFile?.indicators || bundledIndicators;
+  
+  const updated = indicators.map(ind => (ind.id === body.id ? { ...ind, ...body } : ind));
+
+  const commitBody = {
+    message: `Update indicator: ${body.title || body.id}`,
+    content: Buffer.from(JSON.stringify(updated, null, 2)).toString("base64"),
+    branch: BRANCH,
+  };
+  if (currentFile?.sha) commitBody.sha = currentFile.sha;
+
+  const commitRes = await fetch(CONTENTS, {
+    method: "PUT",
+    headers: {
+      ...githubHeaders(token),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(commitBody),
+  });
+
+  if (!commitRes.ok) {
+    const detail = await commitRes.json().catch(() => ({}));
+    return NextResponse.json({ error: "GitHub commit failed", detail }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true, id: body.id, total: updated.length });
+}

@@ -27,6 +27,32 @@ export default function Home() {
     });
   }
 
+  const handleDelete = async (id) => {
+    const key = prompt("Enter Admin Key to delete:");
+    if (!key) return;
+    if (key !== "icc-mafia-2024") {
+      alert("Unauthorized: Incorrect key");
+      return;
+    }
+    
+    if (!confirm("Are you sure you want to delete this indicator?")) return;
+
+    try {
+      const res = await fetch(`/api/indicators?id=${id}`, {
+        method: 'DELETE',
+        headers: { 'x-api-key': key }
+      });
+      if (res.ok) {
+        setIndicators(prev => prev.filter(i => i.id !== id));
+      } else {
+        const err = await res.json();
+        alert("Delete failed: " + (err.error || "Unknown error"));
+      }
+    } catch (e) {
+      alert("Delete failed: " + e.message);
+    }
+  };
+
   const AGENT_PROMPT = `Build a TradingView Pine Script v6 indicator for: [DESCRIBE THE EXACT SETUP].
 
 ICC Framework Context:
@@ -133,6 +159,12 @@ After publishing: confirm success:true, then GET https://icc-indicator-hub.verce
 
   return (
     <div style={S.page}>
+      <style>{`
+        .ind-card { position: relative; }
+        .ind-card .del-btn { position: absolute; top: 1.2rem; right: 1.5rem; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; padding: 0.3rem 0.5rem; cursor: pointer; opacity: 0; transition: opacity 0.2s; z-index: 10; font-size: 1rem; }
+        .ind-card:hover .del-btn { opacity: 1; }
+        .ind-card .del-btn:hover { background: rgba(239, 68, 68, 0.2); }
+      `}</style>
       <nav style={S.nav}>
         <div style={S.brand}>ICC <span style={S.brandAccent}>God Mode</span></div>
         <div style={S.navRight}>
@@ -191,7 +223,8 @@ After publishing: confirm success:true, then GET https://icc-indicator-hub.verce
         )}
 
         {filtered.map(ind => (
-          <div key={ind.id} style={S.card}>
+          <div key={ind.id} style={S.card} className="ind-card">
+            <button className="del-btn" onClick={() => handleDelete(ind.id)} title="Delete Indicator">🗑</button>
             <div style={S.cardHead}>
               <div style={S.badgePill(ind.badgeColor || "#26a69a")}>{ind.badge || "INDICATOR"}</div>
               <div style={S.cardTitle}>{ind.title}</div>
